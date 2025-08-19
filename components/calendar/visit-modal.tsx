@@ -1,0 +1,540 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect, useCallback } from "react"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { toast } from "sonner"
+import { updateVisit, type Visit } from "@/lib/visits-data"
+import {
+  Calendar,
+  Clock,
+  User,
+  Camera,
+  AlertTriangle,
+  TrendingUp,
+  X,
+  Target,
+  BarChart3,
+  History,
+  Play,
+  Pause,
+  Square,
+  Timer,
+} from "lucide-react"
+
+interface VisitModalProps {
+  isOpen: boolean
+  onClose: () => void
+  visit: Visit | null
+}
+
+interface StoreHistory {
+  totalVisits: number
+  averageScore: number
+  salesTrend: "up" | "down" | "stable"
+  complianceTrend: "up" | "down" | "stable"
+  recentPhotos: string[]
+  commonIssues: string[]
+}
+
+const sampleStoreHistory: StoreHistory = {
+  totalVisits: 24,
+  averageScore: 8.5,
+  salesTrend: "up",
+  complianceTrend: "stable",
+  recentPhotos: [
+    "/placeholder.svg?height=80&width=80&text=Photo1",
+    "/placeholder.svg?height=80&width=80&text=Photo2",
+    "/placeholder.svg?height=80&width=80&text=Photo3",
+    "/placeholder.svg?height=80&width=80&text=Photo4",
+  ],
+  commonIssues: ["Precios desactualizados", "Stock bajo en promociones", "PLV mal colocado"],
+}
+
+export function VisitModal({ isOpen, onClose, visit }: VisitModalProps) {
+  const [visitNotes, setVisitNotes] = useState("")
+  const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([])
+  const [tasks, setTasks] = useState([
+    { id: "1", name: "Auditoría de lineal", completed: false },
+    { id: "2", name: "Verificación de PLV", completed: false },
+    { id: "3", name: "Comprobar precios", completed: false },
+  ])
+  const [timer, setTimer] = useState({ elapsed: 0, interval: null as NodeJS.Timeout | null })
+  const [currentVisit, setCurrentVisit] = useState<Visit | null>(visit)
+
+  useEffect(() => {
+    if (visit) {
+      setCurrentVisit(visit)
+      setVisitNotes(visit.notes || "")
+
+      // If visit is in progress and has a start time, calculate elapsed time
+      if (visit.status === "in-progress" && visit.startTime) {
+        const elapsed = Math.floor((new Date().getTime() - visit.startTime.getTime()) / 1000)
+        startTimer(elapsed)
+      }
+    }
+  }, [visit])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timer.interval) {
+        clearInterval(timer.interval)
+      }
+    }
+  }, [timer.interval])
+
+  const startTimer = useCallback(
+    (initialElapsed = 0) => {
+      // Clear existing timer if any
+      if (timer.interval) {
+        clearInterval(timer.interval)
+      }
+
+      const interval = setInterval(() => {
+        setTimer((prev) => ({
+          ...prev,
+          elapsed: prev.elapsed + 1,
+        }))
+      }, 1000)
+
+      setTimer({
+        elapsed: initialElapsed,
+        interval,
+      })
+    },
+    [timer.interval],
+  )
+
+  const stopTimer = useCallback(() => {
+    if (timer.interval) {
+      clearInterval(timer.interval)
+      setTimer((prev) => ({
+        ...prev,
+        interval: null,
+      }))
+    }
+  }, [timer.interval])
+
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  }
+
+  const handleStartVisit = () => {
+    if (!currentVisit) return
+
+    const now = new Date()
+    const updatedVisit = {
+      ...currentVisit,
+      status: "in-progress" as const,
+      startTime: now,
+      isActive: true,
+    }
+
+    setCurrentVisit(updatedVisit)
+    updateVisit(updatedVisit)
+    startTimer()
+    toast.success(`Visita a ${currentVisit.title} iniciada correctamente`)
+  }
+
+  const handlePauseVisit = () => {
+    if (!currentVisit) return
+
+    stopTimer()
+    const updatedVisit = {
+      ...currentVisit,
+      isActive: false,
+      pausedTime: (currentVisit.pausedTime || 0) + timer.elapsed,
+    }
+
+    setCurrentVisit(updatedVisit)
+    updateVisit(updatedVisit)
+    toast.success(`Visita a ${currentVisit.title} pausada`)
+  }
+
+  const handleResumeVisit = () => {
+    if (!currentVisit) return
+
+    const updatedVisit = {
+      ...currentVisit,
+      isActive: true,
+    }
+
+    setCurrentVisit(updatedVisit)
+    updateVisit(updatedVisit)
+    startTimer(timer.elapsed)
+    toast.success(`Visita a ${currentVisit.title} reanudada`)
+  }
+
+  const handleFinishVisit = () => {
+    if (!currentVisit) return
+
+    stopTimer()
+    const actualDuration = Math.floor(timer.elapsed / 60) // Convert to minutes
+
+    const updatedVisit = {
+      ...currentVisit,
+      status: "completed" as const,
+      progress: 100,
+      endTime: new Date(),
+      actualDuration: actualDuration,
+      isActive: false,
+    }
+
+    setCurrentVisit(updatedVisit)
+    updateVisit(updatedVisit)
+    toast.success(`Visita a ${currentVisit.title} completada en ${formatTime(timer.elapsed)}`)
+  }
+
+  const handleTaskToggle = (taskId: string) => {
+    const updatedTasks = tasks.map((task) => (task.id === taskId ? { ...task, completed: !task.completed } : task))
+    setTasks(updatedTasks)
+
+    // Update visit progress
+    if (currentVisit) {
+      const completedTasks = updatedTasks.filter((t) => t.completed).length
+      const progress = Math.round((completedTasks / updatedTasks.length) * 100)
+      const updatedVisit = { ...currentVisit, progress }
+      setCurrentVisit(updatedVisit)
+      updateVisit(updatedVisit)
+    }
+  }
+
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files && currentVisit?.status !== "planned") {
+      Array.from(files).forEach((file) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            setUploadedPhotos((prev) => [...prev, e.target!.result as string])
+          }
+        }
+        reader.readAsDataURL(file)
+      })
+      toast.success(`${files.length} foto(s) subida(s) correctamente`)
+    } else if (currentVisit?.status === "planned") {
+      toast.error("Debes iniciar la visita antes de subir fotos")
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "low":
+        return "bg-gray-100 text-gray-700"
+      case "medium":
+        return "bg-yellow-100 text-yellow-700"
+      case "high":
+        return "bg-orange-100 text-orange-700"
+      case "urgent":
+        return "bg-red-100 text-red-700"
+      default:
+        return "bg-gray-100 text-gray-700"
+    }
+  }
+
+  if (!currentVisit) return null
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-6xl h-[95vh] p-0 overflow-hidden">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <DialogTitle className="text-xl font-bold">{currentVisit.title}</DialogTitle>
+
+            {/* Visit Control Buttons */}
+            <div className="flex items-center gap-2">
+              {currentVisit.status === "planned" && (
+                <Button onClick={handleStartVisit} className="bg-green-600 hover:bg-green-700">
+                  <Play className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Iniciar Visita</span>
+                </Button>
+              )}
+
+              {currentVisit.status === "in-progress" && (
+                <>
+                  {currentVisit.isActive ? (
+                    <Button onClick={handlePauseVisit} variant="outline">
+                      <Pause className="w-4 h-4 mr-2" />
+                      <span className="hidden sm:inline">Pausar</span>
+                    </Button>
+                  ) : (
+                    <Button onClick={handleResumeVisit} variant="outline">
+                      <Play className="w-4 h-4 mr-2" />
+                      <span className="hidden sm:inline">Reanudar</span>
+                    </Button>
+                  )}
+
+                  <Button onClick={handleFinishVisit} className="bg-blue-600 hover:bg-blue-700">
+                    <Square className="w-4 h-4 mr-2" />
+                    <span className="hidden sm:inline">Finalizar</span>
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Visit Info */}
+          <div className="space-y-2">
+            <p className="text-gray-600">{currentVisit.address}</p>
+
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-1">
+                <Calendar className="w-4 h-4" />
+                <span>
+                  {currentVisit.date.toLocaleDateString("es-ES", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })}{" "}
+                  - {currentVisit.time}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <User className="w-4 h-4" />
+                <span>{currentVisit.assignee}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                <span>{currentVisit.duration} min</span>
+              </div>
+              <Badge className={getPriorityColor(currentVisit.priority)}>{currentVisit.priority}</Badge>
+
+              {/* Timer Display */}
+              {currentVisit.status === "in-progress" && currentVisit.isActive && (
+                <div className="flex items-center gap-1 bg-orange-100 text-orange-700 px-2 py-1 rounded-md font-medium">
+                  <Timer className="w-4 h-4" />
+                  <span>{formatTime(timer.elapsed)}</span>
+                </div>
+              )}
+
+              {/* Progress Bar */}
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-xs">Progreso:</span>
+                <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                    style={{ width: `${currentVisit.progress || 0}%` }}
+                  />
+                </div>
+                <span className="text-xs font-medium">{currentVisit.progress || 0}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scrollable Content */}
+        <ScrollArea className="flex-1 p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Quick Actions */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="w-5 h-5" />
+                    Acciones Rápidas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Photo Upload */}
+                  <div>
+                    <Label className="text-sm font-medium mb-3 block">📸 Subir fotos</Label>
+                    <div
+                      className={`border-2 border-dashed rounded-lg p-6 lg:p-8 text-center transition-colors ${
+                        currentVisit.status === "planned"
+                          ? "border-gray-200 bg-gray-50 cursor-not-allowed"
+                          : "border-gray-300 hover:border-blue-400 cursor-pointer"
+                      }`}
+                    >
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                        id="photo-upload"
+                        disabled={currentVisit.status === "planned"}
+                      />
+                      <label
+                        htmlFor="photo-upload"
+                        className={`cursor-pointer ${currentVisit.status === "planned" ? "cursor-not-allowed" : ""}`}
+                      >
+                        <Camera className="w-8 lg:w-12 h-8 lg:h-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-600 text-sm lg:text-base">
+                          {currentVisit.status === "planned"
+                            ? "Inicia la visita para subir fotos"
+                            : window.innerWidth < 768
+                              ? "Toca para seleccionar fotos"
+                              : "Arrastra fotos aquí o haz clic para seleccionar"}
+                        </p>
+                      </label>
+                    </div>
+                    {uploadedPhotos.length > 0 && (
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                        {uploadedPhotos.map((photo, index) => (
+                          <div key={index} className="relative">
+                            <img
+                              src={photo || "/placeholder.svg"}
+                              alt={`Uploaded ${index + 1}`}
+                              className="w-full h-16 lg:h-20 object-cover rounded border"
+                            />
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="absolute -top-2 -right-2 h-6 w-6 p-0"
+                              onClick={() => setUploadedPhotos((photos) => photos.filter((_, i) => i !== index))}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tasks Checklist */}
+                  <div>
+                    <Label className="text-sm font-medium mb-3 block">✅ Lista de tareas</Label>
+                    <div className="space-y-3">
+                      {tasks.map((task) => (
+                        <div key={task.id} className="flex items-center space-x-3 p-2 rounded hover:bg-gray-50">
+                          <Checkbox
+                            id={task.id}
+                            checked={task.completed}
+                            onCheckedChange={() => handleTaskToggle(task.id)}
+                            disabled={currentVisit.status === "planned"}
+                            className="h-5 w-5"
+                          />
+                          <Label
+                            htmlFor={task.id}
+                            className={`text-sm flex-1 cursor-pointer ${
+                              task.completed ? "line-through text-gray-500" : ""
+                            }`}
+                          >
+                            {task.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <Label className="text-sm font-medium mb-3 block">📝 Notas de la visita</Label>
+                    <Textarea
+                      placeholder="Añade observaciones, incidencias o comentarios..."
+                      value={visitNotes}
+                      onChange={(e) => setVisitNotes(e.target.value)}
+                      className="min-h-[100px] lg:min-h-[120px] resize-none"
+                      disabled={currentVisit.status === "planned"}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column - Store History */}
+            <div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="w-5 h-5" />
+                    Historial de la Tienda
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* KPIs */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-3 lg:p-4 bg-blue-50 rounded-lg">
+                      <div className="text-2xl lg:text-3xl font-bold text-blue-900">
+                        {sampleStoreHistory.totalVisits}
+                      </div>
+                      <div className="text-xs lg:text-sm text-blue-600">Total visitas</div>
+                    </div>
+                    <div className="text-center p-3 lg:p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl lg:text-3xl font-bold text-green-900">
+                        {sampleStoreHistory.averageScore}
+                      </div>
+                      <div className="text-xs lg:text-sm text-green-600">Puntuación media</div>
+                    </div>
+                  </div>
+
+                  {/* Trends */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Ventas</span>
+                      <div className="flex items-center gap-1">
+                        <TrendingUp
+                          className={`w-4 h-4 ${sampleStoreHistory.salesTrend === "up" ? "text-green-600" : "text-red-600"}`}
+                        />
+                        <span className="text-sm font-medium">
+                          {sampleStoreHistory.salesTrend === "up"
+                            ? "↑"
+                            : sampleStoreHistory.salesTrend === "down"
+                              ? "↓"
+                              : "→"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Compliance</span>
+                      <div className="flex items-center gap-1">
+                        <BarChart3 className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium">→</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Recent Photos */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Fotos recientes</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {sampleStoreHistory.recentPhotos.map((photo, index) => (
+                        <img
+                          key={index}
+                          src={photo || "/placeholder.svg"}
+                          alt={`Recent ${index + 1}`}
+                          className="w-full h-12 lg:h-16 object-cover rounded border hover:opacity-75 cursor-pointer transition-opacity"
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Common Issues */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Incidencias comunes</h4>
+                    <div className="space-y-2">
+                      {sampleStoreHistory.commonIssues.map((issue, index) => (
+                        <div key={index} className="flex items-start gap-2 text-sm text-gray-600">
+                          <AlertTriangle className="w-3 h-3 text-orange-500 mt-0.5 flex-shrink-0" />
+                          <span className="leading-tight">{issue}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  )
+}
