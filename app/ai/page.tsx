@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,6 +20,7 @@ import {
   BarChart3,
   Calendar,
   MapPin,
+  LogOut,
 } from "lucide-react"
 
 interface Message {
@@ -62,6 +63,7 @@ const initialSuggestions: Suggestion[] = [
 ]
 
 export default function AIPage() {
+  const [user, setUser] = useState<any>(null)
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -72,6 +74,35 @@ export default function AIPage() {
   ])
   const [inputMessage, setInputMessage] = useState("")
   const [suggestions] = useState<Suggestion[]>(initialSuggestions)
+
+  // Get user from localStorage on component mount
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+    const storedUser = localStorage.getItem("user")
+    
+    if (!token || !storedUser) {
+      window.location.href = "/login"
+      return
+    }
+    
+    try {
+      setUser(JSON.parse(storedUser))
+    } catch (error) {
+      localStorage.removeItem("token")
+      localStorage.removeItem("user")
+      window.location.href = "/login"
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      localStorage.removeItem("token")
+      localStorage.removeItem("user")
+      window.location.href = "/login"
+    } catch (error) {
+      console.error("Logout error:", error)
+    }
+  }
 
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return
@@ -149,16 +180,34 @@ export default function AIPage() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <MessageSquare className="w-6 h-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Asistente IA</h1>
-            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-              <Sparkles className="w-3 h-3 mr-1" />
-              Impulsado por IA
-            </Badge>
+        <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Buenas Tardes, {user?.first_name || "Usuario"}
+                </h1>
+                <p className="text-gray-600">Tu asistente de IA para análisis de retail está listo para ayudarte.</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                <Sparkles className="w-3 h-3 mr-1" />
+                Impulsado por IA
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="flex items-center space-x-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Cerrar Sesión</span>
+              </Button>
+            </div>
           </div>
-        </div>
+        </header>
 
         <div className="flex-1 flex overflow-hidden">
           {/* Main Chat Area */}

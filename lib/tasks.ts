@@ -22,6 +22,7 @@ export interface Task {
   id: number;
   title: string;
   description?: string;
+  category: 'visita' | 'reporte';
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assigned_by: number;
@@ -42,6 +43,7 @@ export interface Task {
 export interface CreateTaskData {
   title: string;
   description?: string;
+  category: 'visita' | 'reporte';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to: number;
   due_date?: Date;
@@ -74,8 +76,8 @@ export async function createTask(data: CreateTaskData, assignedBy: number): Prom
   }
 
   const query = `
-    INSERT INTO tasks (title, description, priority, assigned_by, assigned_to, team_code, due_date, estimated_hours, tags, comments, history)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (title, description, category, priority, assigned_by, assigned_to, team_code, due_date, estimated_hours, tags, comments, history)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   
   const initialHistory = [{
@@ -90,6 +92,7 @@ export async function createTask(data: CreateTaskData, assignedBy: number): Prom
   const params = [
     data.title,
     data.description || null,
+    data.category,
     data.priority || 'medium',
     assignedBy,
     data.assigned_to,
@@ -193,6 +196,39 @@ export async function getTasksAssignedByUser(userId: number): Promise<Task[]> {
     LEFT JOIN users u2 ON t.assigned_to = u2.id
     WHERE t.assigned_by = ?
     ORDER BY t.created_at DESC
+  `;
+  
+  const result = await executeQuery(query, [userId]);
+  
+  // Parse JSON fields for each task
+  return (result as any[]).map(task => {
+    if (task.comments) {
+      task.comments = JSON.parse(task.comments);
+    }
+    if (task.history) {
+      task.history = JSON.parse(task.history);
+    }
+    if (task.tags) {
+      task.tags = JSON.parse(task.tags);
+    }
+    if (task.attachments) {
+      task.attachments = JSON.parse(task.attachments);
+    }
+    return task;
+  }) as Task[];
+}
+
+// Get visit tasks for a user (simple SQL query for sidebar)
+export async function getVisitTasksForUser(userId: number): Promise<Task[]> {
+  const query = `
+    SELECT t.*, 
+           CONCAT(u2.first_name, ' ', u2.last_name) as assigned_to_name
+    FROM tasks t
+    LEFT JOIN users u2 ON t.assigned_to = u2.id
+    WHERE t.assigned_to = ? 
+      AND t.category = 'visita' 
+      AND t.status != 'completed'
+    ORDER BY t.due_date ASC, t.priority DESC
   `;
   
   const result = await executeQuery(query, [userId]);
@@ -391,4 +427,69 @@ export async function getTaskStats(userId: number): Promise<{
     completed: result.completed || 0,
     overdue: result.overdue || 0
   };
+} 
+
+// Get tasks assigned to a specific agent with due date for calendar
+export async function getTasksForAgentCalendar(agentId: number): Promise<Task[]> {
+  console.log('🔍 Buscando tareas para agente ID:', agentId)
+  
+  const query = `
+    SELECT t.*, 
+           CONCAT(u1.first_name, ' ', u1.last_name) as assigned_by_name,
+           CONCAT(u2.first_name, ' ', u2.last_name) as assigned_to_name
+    FROM tasks t
+    LEFT JOIN users u1 ON t.assigned_by = u1.id
+    LEFT JOIN users u2 ON t.assigned_to = u2.id
+    WHERE t.assigned_to = ? 
+      AND t.due_date IS NOT NULL
+      AND t.status != 'completed'
+    ORDER BY t.due_date ASC, t.priority DESC
+  `;
+  
+  console.log('📝 Query SQL:', query)
+  console.log('🔢 Parámetros:', [agentId])
+  
+  try {
+    const result = await executeQuery(query, [agentId]);
+    console.log('📊 Resultado de la base de datos:', result)
+    
+    // Parse JSON fields for each task
+    const parsedTasks = (result as any[]).map(task => {
+      if (task.comments && typeof task.comments === 'string') {
+        try {
+          task.comments = JSON.parse(task.comments);
+        } catch (e) {
+          task.comments = [];
+        }
+      }
+      if (task.history && typeof task.history === 'string') {
+        try {
+          task.history = JSON.parse(task.history);
+        } catch (e) {
+          task.history = [];
+        }
+      }
+      if (task.tags && typeof task.tags === 'string') {
+        try {
+          task.tags = JSON.parse(task.tags);
+        } catch (e) {
+          task.tags = [];
+        }
+      }
+      if (task.attachments && typeof task.attachments === 'string') {
+        try {
+          task.attachments = JSON.parse(task.attachments);
+        } catch (e) {
+          task.attachments = [];
+        }
+      }
+      return task;
+    }) as Task[];
+    
+    console.log('✅ Tareas parseadas:', parsedTasks)
+    return parsedTasks
+  } catch (error) {
+    console.error('💥 Error en getTasksForAgentCalendar:', error)
+    throw error
+  }
 } 

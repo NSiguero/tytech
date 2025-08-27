@@ -13,25 +13,15 @@ import { CalendarIcon, Trash2, Save, Plus } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
-
-interface Task {
-  id: string
-  title: string
-  description?: string
-  dueDate: Date
-  assignee: string
-  priority: "low" | "medium" | "high" | "urgent"
-  status: "pending" | "in-progress" | "completed"
-  estimatedHours?: number
-}
+import type { Task } from "@/lib/tasks"
 
 interface TaskModalProps {
   isOpen: boolean
   onClose: () => void
   task?: Task | null
-  onCreate: (taskData: Omit<Task, "id">) => void
+  onCreate: (taskData: Omit<Task, "id" | "created_at" | "updated_at" | "assigned_by" | "team_code" | "category" | "status" | "priority">) => void
   onUpdate: (task: Task) => void
-  onDelete: (taskId: string) => void
+  onDelete: (taskId: number) => void
   selectedDate?: Date | null
 }
 
@@ -47,11 +37,8 @@ export function TaskModal({
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    dueDate: selectedDate || new Date(),
-    assignee: "",
-    priority: "medium" as const,
-    status: "pending" as const,
-    estimatedHours: ""
+    due_date: selectedDate || new Date(),
+    estimated_hours: ""
   })
 
   const [isEditing, setIsEditing] = useState(false)
@@ -61,22 +48,16 @@ export function TaskModal({
       setFormData({
         title: task.title,
         description: task.description || "",
-        dueDate: task.dueDate,
-        assignee: task.assignee,
-        priority: task.priority,
-        status: task.status,
-        estimatedHours: task.estimatedHours?.toString() || ""
+        due_date: task.due_date ? new Date(task.due_date) : new Date(),
+        estimated_hours: task.estimated_hours?.toString() || ""
       })
       setIsEditing(true)
     } else {
       setFormData({
         title: "",
         description: "",
-        dueDate: selectedDate || new Date(),
-        assignee: "",
-        priority: "medium",
-        status: "pending",
-        estimatedHours: ""
+        due_date: selectedDate || new Date(),
+        estimated_hours: ""
       })
       setIsEditing(false)
     }
@@ -90,11 +71,8 @@ export function TaskModal({
     const taskData = {
       title: formData.title.trim(),
       description: formData.description.trim() || undefined,
-      dueDate: formData.dueDate,
-      assignee: formData.assignee.trim(),
-      priority: formData.priority,
-      status: formData.status,
-      estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : undefined
+      due_date: formData.due_date,
+      estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : undefined
     }
 
     if (isEditing && task) {
@@ -111,19 +89,6 @@ export function TaskModal({
       onDelete(task.id)
       onClose()
     }
-  }
-
-  const priorityColors = {
-    low: "bg-green-100 text-green-800",
-    medium: "bg-yellow-100 text-yellow-800",
-    high: "bg-orange-100 text-orange-800",
-    urgent: "bg-red-100 text-red-800"
-  }
-
-  const statusColors = {
-    pending: "bg-gray-100 text-gray-800",
-    "in-progress": "bg-blue-100 text-blue-800",
-    completed: "bg-green-100 text-green-800"
   }
 
   return (
@@ -160,90 +125,36 @@ export function TaskModal({
             />
           </div>
 
-          {/* Due Date and Assignee */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Fecha de Vencimiento</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.dueDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.dueDate ? (
-                      format(formData.dueDate, "PPP", { locale: es })
-                    ) : (
-                      <span>Seleccionar fecha</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.dueDate}
-                    onSelect={(date) => date && setFormData({ ...formData, dueDate: date })}
-                    initialFocus
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div>
-              <Label htmlFor="assignee">Asignado a</Label>
-              <Input
-                id="assignee"
-                value={formData.assignee}
-                onChange={(e) => setFormData({ ...formData, assignee: e.target.value })}
-                placeholder="Nombre del responsable"
-              />
-            </div>
-          </div>
-
-          {/* Priority and Status */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="priority">Prioridad</Label>
-              <Select
-                value={formData.priority}
-                onValueChange={(value: "low" | "medium" | "high" | "urgent") =>
-                  setFormData({ ...formData, priority: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Baja</SelectItem>
-                  <SelectItem value="medium">Media</SelectItem>
-                  <SelectItem value="high">Alta</SelectItem>
-                  <SelectItem value="urgent">Urgente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="status">Estado</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value: "pending" | "in-progress" | "completed") =>
-                  setFormData({ ...formData, status: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pendiente</SelectItem>
-                  <SelectItem value="in-progress">En Progreso</SelectItem>
-                  <SelectItem value="completed">Completada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Due Date */}
+          <div>
+            <Label>Fecha de Vencimiento</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !formData.due_date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {formData.due_date ? (
+                    format(formData.due_date, "PPP", { locale: es })
+                  ) : (
+                    <span>Seleccionar fecha</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={formData.due_date}
+                  onSelect={(date) => date && setFormData({ ...formData, due_date: date })}
+                  initialFocus
+                  locale={es}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Estimated Hours */}
@@ -254,8 +165,8 @@ export function TaskModal({
               type="number"
               step="0.5"
               min="0"
-              value={formData.estimatedHours}
-              onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
+              value={formData.estimated_hours}
+              onChange={(e) => setFormData({ ...formData, estimated_hours: e.target.value })}
               placeholder="0.5"
             />
           </div>
@@ -270,28 +181,11 @@ export function TaskModal({
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">Fecha:</span>
-                <span>{formData.dueDate ? format(formData.dueDate, "PPP", { locale: es }) : "No seleccionada"}</span>
+                <span>{formData.due_date ? format(formData.due_date, "PPP", { locale: es }) : "No seleccionada"}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-medium">Asignado:</span>
-                <span>{formData.assignee || "No asignado"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Prioridad:</span>
-                <span className={cn("px-2 py-1 rounded-full text-xs", priorityColors[formData.priority])}>
-                  {formData.priority === "low" && "Baja"}
-                  {formData.priority === "medium" && "Media"}
-                  {formData.priority === "high" && "Alta"}
-                  {formData.priority === "urgent" && "Urgente"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Estado:</span>
-                <span className={cn("px-2 py-1 rounded-full text-xs", statusColors[formData.status])}>
-                  {formData.status === "pending" && "Pendiente"}
-                  {formData.status === "in-progress" && "En Progreso"}
-                  {formData.status === "completed" && "Completada"}
-                </span>
+                <span className="font-medium">Horas Estimadas:</span>
+                <span>{formData.estimated_hours || "No especificadas"}</span>
               </div>
             </div>
           </div>

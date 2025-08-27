@@ -5,38 +5,54 @@ import { Sidebar } from "@/components/sidebar"
 import { CalendarHeader } from "@/components/calendar/calendar-header"
 import { CalendarGrid } from "@/components/calendar/calendar-grid"
 import { AssignedVisits } from "@/components/calendar/assigned-visits"
-import { AssignVisitModal } from "@/components/calendar/assign-visit-modal"
 import { VisitModal } from "@/components/calendar/visit-modal"
-import { TaskModal } from "@/components/task-modal"
+import { TaskDetailModal } from "@/components/task-detail-modal"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { visitsData, type Visit } from "@/lib/visits-data"
-import { Menu, Plus, Calendar, Clock, MapPin, User, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Menu } from "lucide-react"
 import { toast } from "sonner"
-
-interface Task {
-  id: string
-  title: string
-  description?: string
-  dueDate: Date
-  assignee: string
-  priority: "low" | "medium" | "high" | "urgent"
-  status: "pending" | "in-progress" | "completed"
-  estimatedHours?: number
-}
+import type { Task } from "@/lib/tasks"
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [viewMode, setViewMode] = useState<"month" | "week" | "day" | "agenda">("month")
   const [visits, setVisits] = useState<Visit[]>(visitsData)
   const [tasks, setTasks] = useState<Task[]>([])
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isVisitModalOpen, setIsVisitModalOpen] = useState(false)
+  const [isTaskDetailModalOpen, setIsTaskDetailModalOpen] = useState(false)
   const [isMobileManagementOpen, setIsMobileManagementOpen] = useState(false)
+  const [isLoadingTasks, setIsLoadingTasks] = useState(true)
+
+  // Load tasks for the current user (agent)
+  useEffect(() => {
+    const loadAgentTasks = async () => {
+      try {
+        setIsLoadingTasks(true)
+        // For now, we'll use a mock agent ID. In a real app, this would come from user authentication
+        const agentId = 6 // Rodrigo Quesada - usuario que tiene tareas asignadas
+        console.log('👤 ID del agente:', agentId)
+        const response = await fetch(`/api/tasks/agent/${agentId}`)
+        
+        if (response.ok) {
+          const agentTasks = await response.json()
+          setTasks(agentTasks)
+        } else {
+          console.error('Failed to load agent tasks')
+          toast.error('Error al cargar las tareas del agente')
+        }
+      } catch (error) {
+        console.error('Error loading agent tasks:', error)
+        toast.error('Error al cargar las tareas del agente')
+      } finally {
+        setIsLoadingTasks(false)
+      }
+    }
+
+    loadAgentTasks()
+  }, [])
 
   // Filter visits and tasks for the current period
   const getItemsForPeriod = () => {
@@ -49,7 +65,9 @@ export default function CalendarPage() {
     
     // Add tasks
     tasks.forEach(task => {
-      items.push({ type: 'task', data: task, date: new Date(task.dueDate) })
+      if (task.due_date) {
+        items.push({ type: 'task', data: task, date: new Date(task.due_date) })
+      }
     })
     
     if (viewMode === "month") {
@@ -69,11 +87,6 @@ export default function CalendarPage() {
     }
   }
 
-  const handleDateClick = (date: Date) => {
-    setSelectedDate(date)
-    setIsAssignModalOpen(true)
-  }
-
   const handleVisitClick = (visit: Visit) => {
     setSelectedVisit(visit)
     setIsVisitModalOpen(true)
@@ -81,49 +94,7 @@ export default function CalendarPage() {
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task)
-    setIsTaskModalOpen(true)
-  }
-
-  const handleAssignVisit = (visitData: Omit<Visit, "id">) => {
-    const newVisit: Visit = {
-      ...visitData,
-      id: Date.now().toString(),
-    }
-    setVisits([...visits, newVisit])
-    setIsAssignModalOpen(false)
-    setSelectedDate(null)
-    toast.success("Visita asignada correctamente")
-  }
-
-  const handleCreateTask = (taskData: Omit<Task, "id">) => {
-    const newTask: Task = {
-      ...taskData,
-      id: Date.now().toString(),
-    }
-    setTasks([...tasks, newTask])
-    setIsTaskModalOpen(false)
-    setSelectedDate(null)
-    toast.success("Tarea creada correctamente")
-  }
-
-  const handleUpdateVisit = (updatedVisit: Visit) => {
-    setVisits(visits.map(v => v.id === updatedVisit.id ? updatedVisit : v))
-    toast.success("Visita actualizada correctamente")
-  }
-
-  const handleUpdateTask = (updatedTask: Task) => {
-    setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t))
-    toast.success("Tarea actualizada correctamente")
-  }
-
-  const handleDeleteVisit = (visitId: string) => {
-    setVisits(visits.filter(v => v.id !== visitId))
-    toast.success("Visita eliminada correctamente")
-  }
-
-  const handleDeleteTask = (taskId: string) => {
-    setTasks(tasks.filter(t => t.id !== taskId))
-    toast.success("Tarea eliminada correctamente")
+    setIsTaskDetailModalOpen(true)
   }
 
   const filteredItems = getItemsForPeriod()
@@ -140,8 +111,6 @@ export default function CalendarPage() {
           setCurrentDate={setCurrentDate}
           viewMode={viewMode}
           setViewMode={setViewMode}
-          onAssignVisit={() => setIsAssignModalOpen(true)}
-          onCreateTask={() => setIsTaskModalOpen(true)}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -152,7 +121,6 @@ export default function CalendarPage() {
               viewMode={viewMode}
               visits={visits}
               tasks={tasks}
-              onDateClick={handleDateClick}
               onVisitClick={handleVisitClick}
               onTaskClick={handleTaskClick}
             />
@@ -163,9 +131,7 @@ export default function CalendarPage() {
             <AssignedVisits
               visits={visits}
               tasks={tasks}
-              onAssignVisit={() => setIsAssignModalOpen(true)}
               onViewVisit={handleVisitClick}
-              onCreateTask={() => setIsTaskModalOpen(true)}
               onViewTask={handleTaskClick}
             />
           </div>
@@ -182,17 +148,9 @@ export default function CalendarPage() {
                 <AssignedVisits
                   visits={visits}
                   tasks={tasks}
-                  onAssignVisit={() => {
-                    setIsMobileManagementOpen(false)
-                    setIsAssignModalOpen(true)
-                  }}
                   onViewVisit={(visit) => {
                     setIsMobileManagementOpen(false)
                     handleVisitClick(visit)
-                  }}
-                  onCreateTask={() => {
-                    setIsMobileManagementOpen(false)
-                    setIsTaskModalOpen(true)
                   }}
                   onViewTask={(task) => {
                     setIsMobileManagementOpen(false)
@@ -208,16 +166,6 @@ export default function CalendarPage() {
       </div>
 
       {/* Modals */}
-      <AssignVisitModal
-        isOpen={isAssignModalOpen}
-        onClose={() => {
-          setIsAssignModalOpen(false)
-          setSelectedDate(null)
-        }}
-        selectedDate={selectedDate}
-        onAssign={handleAssignVisit}
-      />
-
       <VisitModal
         isOpen={isVisitModalOpen}
         onClose={() => {
@@ -225,21 +173,23 @@ export default function CalendarPage() {
           setSelectedVisit(null)
         }}
         visit={selectedVisit}
-        onUpdate={handleUpdateVisit}
-        onDelete={handleDeleteVisit}
       />
 
-      <TaskModal
-        isOpen={isTaskModalOpen}
+      <TaskDetailModal
+        isOpen={isTaskDetailModalOpen}
         onClose={() => {
-          setIsTaskModalOpen(false)
+          setIsTaskDetailModalOpen(false)
           setSelectedTask(null)
         }}
         task={selectedTask}
-        onCreate={handleCreateTask}
-        onUpdate={handleUpdateTask}
-        onDelete={handleDeleteTask}
-        selectedDate={selectedDate}
+        onEdit={() => {
+          // No edit functionality for agents in calendar view
+          toast.info("Los agentes no pueden editar tareas desde el calendario")
+        }}
+        onDelete={() => {
+          // No delete functionality for agents in calendar view
+          toast.info("Los agentes no pueden eliminar tareas desde el calendario")
+        }}
       />
     </div>
   )

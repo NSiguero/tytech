@@ -37,6 +37,7 @@ import {
   Pause,
   Timer,
   CheckSquare,
+  LogOut,
 } from "lucide-react"
 
 interface Product {
@@ -132,6 +133,7 @@ export default function VisitsPage() {
   const searchParams = useSearchParams()
   const visitId = searchParams.get("visit")
 
+  const [user, setUser] = useState<any>(null)
   const [currentView, setCurrentView] = useState<"list" | "detail">("list")
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
   const [visits, setVisits] = useState<Visit[]>(visitsData)
@@ -148,6 +150,35 @@ export default function VisitsPage() {
     { id: "3", name: "Comprobar precios", completed: false },
   ])
   const [timers, setTimers] = useState<Record<string, { elapsed: number; interval: NodeJS.Timeout | null }>>({})
+
+  // Get user from localStorage on component mount
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+    const storedUser = localStorage.getItem("user")
+    
+    if (!token || !storedUser) {
+      window.location.href = "/login"
+      return
+    }
+    
+    try {
+      setUser(JSON.parse(storedUser))
+    } catch (error) {
+      localStorage.removeItem("token")
+      localStorage.removeItem("user")
+      window.location.href = "/login"
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      localStorage.removeItem("token")
+      localStorage.removeItem("user")
+      window.location.href = "/login"
+    } catch (error) {
+      console.error("Logout error:", error)
+    }
+  }
 
   // Check if we should show detail view based on URL parameter
   useEffect(() => {
@@ -436,318 +467,263 @@ export default function VisitsPage() {
 
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Responsive Header */}
-          <div className="bg-white border-b border-slate-200">
-            {/* Mobile Header */}
-            <div className="block md:hidden p-4">
-              <div className="flex items-center justify-between mb-4">
+          <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
                 <div>
-                  <h1 className="text-xl font-bold text-slate-900">Visitas</h1>
-                  <p className="text-sm text-slate-600">
-                    {new Date().toLocaleDateString("es-ES", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-slate-900">{filteredVisits.length}</div>
-                  <div className="text-xs text-slate-600">total</div>
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Buenas Tardes, {user?.first_name || "Usuario"}
+                  </h1>
+                  <p className="text-gray-600">Aquí están tus visitas programadas y su estado actual.</p>
                 </div>
               </div>
-
-              {/* Compact Summary Cards */}
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="bg-green-50 rounded-lg p-2 border border-green-200 text-center">
-                  <div className="text-lg font-bold text-green-900">{completedVisits}</div>
-                  <div className="text-xs text-green-600">Done</div>
-                </div>
-                <div className="bg-orange-50 rounded-lg p-2 border border-orange-200 text-center">
-                  <div className="text-lg font-bold text-orange-900">{inProgressVisits}</div>
-                  <div className="text-xs text-orange-600">Active</div>
-                </div>
-                <div className="bg-blue-50 rounded-lg p-2 border border-blue-200 text-center">
-                  <div className="text-lg font-bold text-blue-900">{plannedVisits}</div>
-                  <div className="text-xs text-blue-600">Planned</div>
-                </div>
-              </div>
-
-              {/* Compact Search and Filters */}
-              <div className="space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search visits..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-9"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-9">
-                    <Filter className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="All status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All status</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="in-progress">In progress</SelectItem>
-                    <SelectItem value="planned">Planned</SelectItem>
-                  </SelectContent>
-                </Select>
+              
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="flex items-center space-x-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Cerrar Sesión</span>
+                </Button>
               </div>
             </div>
+          </header>
 
-            {/* Desktop Header */}
-            <div className="hidden md:block px-6 py-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-900">Visitas de Hoy</h1>
-                  <p className="text-slate-600 mt-1">
-                    {new Date().toLocaleDateString("es-ES", {
-                      weekday: "long",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-slate-900">{filteredVisits.length}</div>
-                  <div className="text-sm text-slate-600">visitas programadas</div>
-                </div>
-              </div>
-
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-slate-900">{completedVisits}</div>
-                        <div className="text-sm text-slate-600">Completadas</div>
-                      </div>
+          {/* Main Content */}
+          <div className="flex-1 overflow-auto p-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-orange-100 rounded-lg">
-                        <Clock className="w-5 h-5 text-orange-600" />
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-slate-900">{inProgressVisits}</div>
-                        <div className="text-sm text-slate-600">En progreso</div>
-                      </div>
+                    <div>
+                      <div className="text-2xl font-bold text-slate-900">{completedVisits}</div>
+                      <div className="text-sm text-slate-600">Completadas</div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Calendar className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-slate-900">{plannedVisits}</div>
-                        <div className="text-sm text-slate-600">Programadas</div>
-                      </div>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <Clock className="w-5 h-5 text-orange-600" />
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    <div>
+                      <div className="text-2xl font-bold text-slate-900">{inProgressVisits}</div>
+                      <div className="text-sm text-slate-600">En progreso</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-              {/* Search and Filters */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <Input
-                    placeholder="Buscar por tienda o dirección..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-48">
-                    <Filter className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Todos los estados" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los estados</SelectItem>
-                    <SelectItem value="completed">Completadas</SelectItem>
-                    <SelectItem value="in-progress">En progreso</SelectItem>
-                    <SelectItem value="planned">Programadas</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Calendar className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-slate-900">{plannedVisits}</div>
+                      <div className="text-sm text-slate-600">Programadas</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </div>
 
-          {/* Visits List - More space on mobile */}
-          <div className="flex-1 overflow-auto p-2 md:p-6">
-            <div className="space-y-2 md:space-y-4">
-              {filteredVisits.length === 0 ? (
-                <Card>
-                  <CardContent className="p-8 text-center">
-                    <Calendar className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-slate-900 mb-2">No hay visitas</h3>
-                    <p className="text-slate-600">
-                      {searchTerm || statusFilter !== "all"
-                        ? "No se encontraron visitas con los filtros aplicados"
-                        : "No hay visitas programadas para hoy"}
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                filteredVisits
-                  .sort((a, b) => a.time.localeCompare(b.time))
-                  .map((visit) => {
-                    const statusBadge = getVisitStatusBadge(visit)
-                    const isActive = visit.status === "in-progress" && visit.isActive
-                    const elapsed = timers[visit.id]?.elapsed || 0
+            {/* Search and Filters */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Input
+                  placeholder="Buscar por tienda o dirección..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="completed">Completadas</SelectItem>
+                  <SelectItem value="in-progress">En progreso</SelectItem>
+                  <SelectItem value="planned">Programadas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-                    return (
-                      <Card
-                        key={visit.id}
-                        className="cursor-pointer hover:shadow-md transition-all duration-200 hover:border-blue-300"
-                        onClick={() => {
-                          setSelectedVisit(visit)
-                          setCurrentView("detail")
-                        }}
-                      >
-                        <CardContent className="p-3 md:p-6">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-                                <h3 className="text-base md:text-lg font-semibold text-slate-900 truncate">
-                                  {visit.title}
-                                </h3>
-                                <Badge className={`${statusBadge.color} text-xs`}>{statusBadge.text}</Badge>
-                                <Badge className={`${getPriorityColor(visit.priority)} text-xs hidden sm:inline-flex`}>
-                                  {visit.priority}
-                                </Badge>
-                              </div>
+            {/* Visits List - More space on mobile */}
+            <div className="flex-1 overflow-auto p-2 md:p-6">
+              <div className="space-y-2 md:space-y-4">
+                {filteredVisits.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-8 text-center">
+                      <Calendar className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-slate-900 mb-2">No hay visitas</h3>
+                      <p className="text-slate-600">
+                        {searchTerm || statusFilter !== "all"
+                          ? "No se encontraron visitas con los filtros aplicados"
+                          : "No hay visitas programadas para hoy"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  filteredVisits
+                    .sort((a, b) => a.time.localeCompare(b.time))
+                    .map((visit) => {
+                      const statusBadge = getVisitStatusBadge(visit)
+                      const isActive = visit.status === "in-progress" && visit.isActive
+                      const elapsed = timers[visit.id]?.elapsed || 0
 
-                              <div className="flex items-center gap-1 text-xs md:text-sm text-slate-600 mb-2">
-                                <MapPin className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
-                                <span className="truncate">{visit.address}</span>
-                              </div>
-
-                              <div className="flex items-center gap-3 md:gap-6 text-xs md:text-sm text-slate-600 mb-2 md:mb-3">
-                                <div className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 md:w-4 md:h-4" />
-                                  <span>{visit.time}</span>
+                      return (
+                        <Card
+                          key={visit.id}
+                          className="cursor-pointer hover:shadow-md transition-all duration-200 hover:border-blue-300"
+                          onClick={() => {
+                            setSelectedVisit(visit)
+                            setCurrentView("detail")
+                          }}
+                        >
+                          <CardContent className="p-3 md:p-6">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                                  <h3 className="text-base md:text-lg font-semibold text-slate-900 truncate">
+                                    {visit.title}
+                                  </h3>
+                                  <Badge className={`${statusBadge.color} text-xs`}>{statusBadge.text}</Badge>
+                                  <Badge className={`${getPriorityColor(visit.priority)} text-xs hidden sm:inline-flex`}>
+                                    {visit.priority}
+                                  </Badge>
                                 </div>
-                                <div className="flex items-center gap-1 hidden sm:flex">
-                                  <User className="w-3 h-3 md:w-4 md:h-4" />
-                                  <span>{visit.assignee}</span>
-                                </div>
-                                <div className="flex items-center gap-1 hidden sm:flex">
-                                  <Calendar className="w-3 h-3 md:w-4 md:h-4" />
-                                  <span>{visit.duration} min</span>
+
+                                <div className="flex items-center gap-1 text-xs md:text-sm text-slate-600 mb-2">
+                                  <MapPin className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
+                                  <span className="truncate">{visit.address}</span>
                                 </div>
 
-                                {isActive && (
-                                  <div className="flex items-center gap-1 text-orange-600 font-medium">
-                                    <Timer className="w-3 h-3 md:w-4 md:h-4" />
-                                    <span>{formatTime(elapsed)}</span>
+                                <div className="flex items-center gap-3 md:gap-6 text-xs md:text-sm text-slate-600 mb-2 md:mb-3">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 md:w-4 md:h-4" />
+                                    <span>{visit.time}</span>
                                   </div>
+                                  <div className="flex items-center gap-1 hidden sm:flex">
+                                    <User className="w-3 h-3 md:w-4 md:h-4" />
+                                    <span>{visit.assignee}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 hidden sm:flex">
+                                    <Calendar className="w-3 h-3 md:w-4 md:h-4" />
+                                    <span>{visit.duration} min</span>
+                                  </div>
+
+                                  {isActive && (
+                                    <div className="flex items-center gap-1 text-orange-600 font-medium">
+                                      <Timer className="w-3 h-3 md:w-4 md:h-4" />
+                                      <span>{formatTime(elapsed)}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {visit.notes && (
+                                  <p className="text-xs md:text-sm text-slate-600 mb-2 md:mb-3 line-clamp-2">
+                                    {visit.notes}
+                                  </p>
                                 )}
                               </div>
 
-                              {visit.notes && (
-                                <p className="text-xs md:text-sm text-slate-600 mb-2 md:mb-3 line-clamp-2">
-                                  {visit.notes}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex flex-col items-end gap-2 md:gap-3 ml-3 md:ml-6">
-                              {/* Visit Control Buttons */}
-                              <div className="flex items-center gap-1 md:gap-2">
-                                {visit.status === "planned" && (
-                                  <Button
-                                    size="sm"
-                                    className="bg-green-600 hover:bg-green-700 text-xs md:text-sm px-2 md:px-3"
-                                    onClick={(e) => handleStartVisit(visit, e)}
-                                  >
-                                    <Play className="w-3 h-3 mr-1" />
-                                    <span className="hidden sm:inline">Iniciar</span>
-                                    <span className="sm:hidden">Start</span>
-                                  </Button>
-                                )}
-
-                                {visit.status === "in-progress" && (
-                                  <>
-                                    {visit.isActive ? (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-xs md:text-sm px-2 md:px-3 bg-transparent"
-                                        onClick={(e) => handlePauseVisit(visit, e)}
-                                      >
-                                        <Pause className="w-3 h-3 mr-1" />
-                                        <span className="hidden sm:inline">Pausar</span>
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-xs md:text-sm px-2 md:px-3 bg-transparent"
-                                        onClick={(e) => handleResumeVisit(visit, e)}
-                                      >
-                                        <Play className="w-3 h-3 mr-1" />
-                                        <span className="hidden sm:inline">Reanudar</span>
-                                      </Button>
-                                    )}
-
+                              <div className="flex flex-col items-end gap-2 md:gap-3 ml-3 md:ml-6">
+                                {/* Visit Control Buttons */}
+                                <div className="flex items-center gap-1 md:gap-2">
+                                  {visit.status === "planned" && (
                                     <Button
                                       size="sm"
-                                      className="bg-blue-600 hover:bg-blue-700 text-xs md:text-sm px-2 md:px-3"
-                                      onClick={(e) => handleFinishVisit(visit, e)}
+                                      className="bg-green-600 hover:bg-green-700 text-xs md:text-sm px-2 md:px-3"
+                                      onClick={(e) => handleStartVisit(visit, e)}
                                     >
-                                      <CheckSquare className="w-3 h-3 mr-1" />
-                                      <span className="hidden sm:inline">Finalizar</span>
-                                      <span className="sm:hidden">End</span>
+                                      <Play className="w-3 h-3 mr-1" />
+                                      <span className="hidden sm:inline">Iniciar</span>
+                                      <span className="sm:hidden">Start</span>
                                     </Button>
-                                  </>
-                                )}
-                              </div>
+                                  )}
 
-                              {visit.progress > 0 && (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-16 md:w-20 h-1.5 md:h-2 bg-slate-200 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-slate-900 rounded-full transition-all duration-300"
-                                      style={{ width: `${visit.progress}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs md:text-sm font-medium text-slate-900">
-                                    {visit.progress}%
-                                  </span>
+                                  {visit.status === "in-progress" && (
+                                    <>
+                                      {visit.isActive ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="text-xs md:text-sm px-2 md:px-3 bg-transparent"
+                                          onClick={(e) => handlePauseVisit(visit, e)}
+                                        >
+                                          <Pause className="w-3 h-3 mr-1" />
+                                          <span className="hidden sm:inline">Pausar</span>
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="text-xs md:text-sm px-2 md:px-3 bg-transparent"
+                                          onClick={(e) => handleResumeVisit(visit, e)}
+                                        >
+                                          <Play className="w-3 h-3 mr-1" />
+                                          <span className="hidden sm:inline">Reanudar</span>
+                                        </Button>
+                                      )}
+
+                                      <Button
+                                        size="sm"
+                                        className="bg-blue-600 hover:bg-blue-700 text-xs md:text-sm px-2 md:px-3"
+                                        onClick={(e) => handleFinishVisit(visit, e)}
+                                      >
+                                        <CheckSquare className="w-3 h-3 mr-1" />
+                                        <span className="hidden sm:inline">Finalizar</span>
+                                        <span className="sm:hidden">End</span>
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
-                              )}
 
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs md:text-sm px-2 md:px-3 hidden md:flex bg-transparent"
-                              >
-                                Ver detalles
-                              </Button>
+                                {visit.progress > 0 && (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 md:w-20 h-1.5 md:h-2 bg-slate-200 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-slate-900 rounded-full transition-all duration-300"
+                                        style={{ width: `${visit.progress}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs md:text-sm font-medium text-slate-900">
+                                      {visit.progress}%
+                                    </span>
+                                  </div>
+                                )}
+
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs md:text-sm px-2 md:px-3 hidden md:flex bg-transparent"
+                                >
+                                  Ver detalles
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })
-              )}
+                          </CardContent>
+                        </Card>
+                      )
+                    })
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -826,7 +802,7 @@ export default function VisitsPage() {
                     - {selectedVisit?.time}
                   </span>
                 </div>
-                <Badge className={getPriorityColor(selectedVisit?.priority || "low")} size="sm">
+                <Badge className={getPriorityColor(selectedVisit?.priority || "low")}>
                   {selectedVisit?.priority}
                 </Badge>
 

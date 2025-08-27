@@ -9,6 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Plus, Users, Clock, Tag } from 'lucide-react';
 import { format } from 'date-fns';
+import { useToast } from '@/components/ui/toast-notification';
 
 interface User {
   id: number;
@@ -21,6 +22,7 @@ interface Task {
   id: number;
   title: string;
   description?: string;
+  category: 'visita' | 'reporte';
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assigned_by: number;
@@ -38,13 +40,15 @@ interface TaskAssignmentPanelProps {
 }
 
 export function TaskAssignmentPanel({ currentUser, onTaskCreated }: TaskAssignmentPanelProps) {
-
+  const { showToast } = useToast();
+  
   const [agents, setAgents] = useState<User[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    category: 'visita' as 'visita' | 'reporte',
     priority: 'medium' as const,
     assigned_to: '',
     due_date: undefined as Date | undefined,
@@ -76,23 +80,37 @@ export function TaskAssignmentPanel({ currentUser, onTaskCreated }: TaskAssignme
         throw new Error(`API error: ${response.status} - ${errorText}`);
       }
       
-      const data = await response.json();
-      if (data.members && Array.isArray(data.members)) {
-        setAgents(data.members);
-      } else {
-        console.error('Invalid response format:', data);
-        setAgents([]);
-      }
-    } catch (error) {
-      console.error('Error fetching team members:', error);
-      setAgents([]);
-    } finally {
-      setIsLoadingAgents(false);
-    }
+             const data = await response.json();
+       if (data.members && Array.isArray(data.members)) {
+         setAgents(data.members);
+         if (data.members.length > 0) {
+           showToast({
+             type: 'success',
+             title: 'Equipo cargado',
+             message: `${data.members.length} agente(s) disponible(s) para asignar tareas.`,
+             duration: 3000
+           });
+         }
+       } else {
+         console.error('Invalid response format:', data);
+         setAgents([]);
+       }
+     } catch (error) {
+       console.error('Error fetching team members:', error);
+       setAgents([]);
+       showToast({
+         type: 'error',
+         title: 'Error al cargar equipo',
+         message: 'No se pudieron cargar los miembros del equipo.',
+         duration: 4000
+       });
+     } finally {
+       setIsLoadingAgents(false);
+     }
   };
 
   const handleCreateTask = async () => {
-    if (!formData.title || !formData.assigned_to) {
+    if (!formData.title || !formData.assigned_to || !formData.category) {
       return;
     }
 
@@ -112,28 +130,42 @@ export function TaskAssignmentPanel({ currentUser, onTaskCreated }: TaskAssignme
         body: JSON.stringify(requestData)
       });
 
-      if (response.ok) {
-        const { task } = await response.json();
-        onTaskCreated(task);
-        setFormData({
-          title: '',
-          description: '',
-          priority: 'medium',
-          assigned_to: '',
-          due_date: undefined,
-          estimated_hours: '',
-          tags: []
-        });
-        setIsCreating(false);
-      } else {
-        const errorText = await response.text();
-        console.error('API error response:', errorText);
-        alert(`Error creating task: ${response.status} - ${errorText}`);
-      }
-    } catch (error: any) {
-      console.error('Error creating task:', error);
-      alert(`Error creating task: ${error?.message || 'Unknown error'}`);
-    }
+             if (response.ok) {
+         const { task } = await response.json();
+         onTaskCreated(task);
+         
+
+         
+         setFormData({
+           title: '',
+           description: '',
+           category: 'visita',
+           priority: 'medium',
+           assigned_to: '',
+           due_date: undefined,
+           estimated_hours: '',
+           tags: []
+         });
+         setIsCreating(false);
+       } else {
+         const errorText = await response.text();
+         console.error('API error response:', errorText);
+         showToast({
+           type: 'error',
+           title: 'Error al crear tarea',
+           message: `Error ${response.status}: ${errorText}`,
+           duration: 5000
+         });
+       }
+     } catch (error: any) {
+       console.error('Error creating task:', error);
+       showToast({
+         type: 'error',
+         title: 'Error al crear tarea',
+         message: error?.message || 'Error desconocido al crear la tarea',
+         duration: 5000
+       });
+     }
   };
 
   // Only managers and admins can create tasks
@@ -181,6 +213,22 @@ export function TaskAssignmentPanel({ currentUser, onTaskCreated }: TaskAssignme
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="Ingresa el título de la tarea"
               />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Categoría *</label>
+              <Select
+                value={formData.category}
+                onValueChange={(value: 'visita' | 'reporte') => setFormData({ ...formData, category: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="visita">Visita</SelectItem>
+                  <SelectItem value="reporte">Reporte</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -277,9 +325,9 @@ export function TaskAssignmentPanel({ currentUser, onTaskCreated }: TaskAssignme
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={handleCreateTask} disabled={!formData.title || !formData.assigned_to}>
-                Crear Tarea
-              </Button>
+                             <Button onClick={handleCreateTask} disabled={!formData.title || !formData.assigned_to || !formData.category}>
+                 Crear Tarea
+               </Button>
               <Button variant="outline" onClick={() => setIsCreating(false)}>
                 Cancelar
               </Button>

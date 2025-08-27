@@ -44,11 +44,15 @@ import { AnalysisModal } from "@/components/analysis-modal"
 import { useToast } from "@/components/ui/toast-notification"
 
 interface Task {
-  id: number
-  task: string
-  count: number
-  urgent: boolean
+  id: string
+  title: string
   description?: string
+  category: 'visita' | 'reporte'
+  dueDate: Date
+  assignee: string
+  priority: "low" | "medium" | "high" | "urgent"
+  status: "pending" | "in-progress" | "completed"
+  estimatedHours?: number
   createdAt?: Date
   isDeleting?: boolean
   completed?: boolean
@@ -77,12 +81,14 @@ export default function DashboardPage() {
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [taskModalMode, setTaskModalMode] = useState<"add" | "view" | "edit">("add")
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
+  const [uploadCount, setUploadCount] = useState<number | null>(null)
   const [user, setUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [productosRefreshTrigger, setProductosRefreshTrigger] = useState(0)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false)
   const [selectedImageForAnalysis, setSelectedImageForAnalysis] = useState<{url: string, filename: string, productos: any[]} | null>(null)
+  const [visitTasks, setVisitTasks] = useState<Task[]>([])
 
   // Get user from localStorage on component mount and check authentication
   useEffect(() => {
@@ -110,6 +116,29 @@ export default function DashboardPage() {
     initPerformanceOptimizations()
   }, [])
 
+  // Fetch visit tasks when user is loaded
+  useEffect(() => {
+    const fetchVisitTasks = async () => {
+      if (user?.id) {
+        try {
+          const response = await fetch(`/api/tasks?category=visita`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setVisitTasks(data.tasks || []);
+          }
+        } catch (error) {
+          console.error('Error fetching visit tasks:', error);
+        }
+      }
+    };
+
+    fetchVisitTasks();
+  }, [user?.id]);
+
   // Load existing uploads
   useEffect(() => {
     const loadUploads = async () => {
@@ -126,6 +155,7 @@ export default function DashboardPage() {
               originalSize: upload.original_size
             }));
             setUploadedImages(uploads);
+            setUploadCount(uploads.length);
             
             // Update performance metrics with actual upload count
             setPerformanceMetrics(prev => ({
@@ -144,75 +174,100 @@ export default function DashboardPage() {
 
   const [pendingTasks, setPendingTasks] = useState<Task[]>([
     {
-      id: 1,
-      task: "Subir fotos de las visitas de ayer",
-      count: 8,
-      urgent: true,
-      description: "Necesito subir y categorizar fotos de las visitas a Carrefour y Mercadona",
+      id: "1",
+      title: "Visita a Carrefour Express - Auditoría de estante",
+      description: "Revisar cuota de estante y colocación de productos",
+      category: "visita",
+      dueDate: new Date(2025, 0, 17, 14, 0),
+      assignee: "Agente 1",
+      priority: "urgent",
+      status: "pending",
+      estimatedHours: 2,
       createdAt: new Date(2025, 0, 17, 9, 30),
       completed: false,
     },
     {
-      id: 2,
-      task: "Revisar informes de cuota de estante",
-      count: 3,
-      urgent: false,
+      id: "2",
+      title: "Revisar informes de cuota de estante",
       description: "Analizar datos de rendimiento de las visitas de la semana pasada",
+      category: "reporte",
+      dueDate: new Date(2025, 0, 17, 10, 15),
+      assignee: "Agente 2",
+      priority: "medium",
+      status: "pending",
+      estimatedHours: 1.5,
       createdAt: new Date(2025, 0, 17, 10, 15),
       completed: false,
     },
     {
-      id: 3,
-      task: "Programar visitas de seguimiento",
-      count: 5,
-      urgent: true,
-      description: "Coordinar con el equipo para las visitas a tiendas de la próxima semana",
+      id: "3",
+      title: "Visita a Mercadona - Verificación de inventario",
+      description: "Contar productos en estante y verificar disponibilidad",
+      category: "visita",
+      dueDate: new Date(2025, 0, 18, 10, 30),
+      assignee: "Agente 3",
+      priority: "high",
+      status: "pending",
+      estimatedHours: 2.5,
       createdAt: new Date(2025, 0, 17, 11, 0),
+      completed: false,
+    },
+    {
+      id: "4",
+      title: "Visita a Día Market - Colocación de productos",
+      description: "Reorganizar estante y colocar nuevos productos",
+      category: "visita",
+      dueDate: new Date(2025, 0, 19, 16, 0),
+      assignee: "Agente 1",
+      priority: "medium",
+      status: "pending",
+      estimatedHours: 3,
+      createdAt: new Date(2025, 0, 17, 12, 0),
       completed: false,
     },
   ])
 
   const [completedTasks, setCompletedTasks] = useState<Task[]>([
     {
-      id: 4,
-      task: "Completar informe de visita a Carrefour",
-      count: 1,
-      urgent: false,
+      id: "5",
+      title: "Completar informe de visita a Carrefour",
       description: "Finalizar documentación para la visita a Carrefour",
+      category: "visita",
+      dueDate: new Date(2025, 0, 16, 14, 30),
+      assignee: "Agente 1",
+      priority: "medium",
+      status: "completed",
+      estimatedHours: 1,
       createdAt: new Date(2025, 0, 16, 14, 30),
       completed: true,
     },
   ])
 
-  const [upcomingVisits] = useState([
-    {
-      id: 1,
-      store: "Carrefour Express",
-      location: "Madrid Centro",
-      date: "Hoy",
-      time: "14:00",
-      status: "confirmed",
-      type: "Auditoría de Estante",
-    },
-    {
-      id: 2,
-      store: "Mercadona",
-      location: "Madrid Norte",
-      date: "Mañana",
-      time: "10:30",
-      status: "pending",
-      type: "Colocación de Productos",
-    },
-    {
-      id: 3,
-      store: "Día Market",
-      location: "Madrid Sur",
-      date: "20 Ene",
-      time: "16:00",
-      status: "confirmed",
-      type: "Verificación de Inventario",
-    },
-  ])
+  // Function to get upcoming visits from tasks
+  const getUpcomingVisits = () => {
+    // Use real visit tasks from database
+    if (visitTasks.length === 0) {
+      return [];
+    }
+    
+    return visitTasks.map((task: any) => ({
+      id: task.id.toString(),
+      store: task.title,
+      location: task.assigned_to_name || `Usuario ${task.assigned_to}`,
+      date: task.due_date ? new Date(task.due_date).toLocaleDateString('es-ES', { 
+        day: 'numeric', 
+        month: 'short' 
+      }) : 'Sin fecha',
+      time: task.due_date ? new Date(task.due_date).toLocaleTimeString('es-ES', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }) : '',
+      status: task.status === 'pending' ? 'pending' : 'confirmed',
+      type: task.description || 'Visita',
+      priority: task.priority,
+      dueDate: task.due_date ? new Date(task.due_date) : new Date()
+    })).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  };
 
 
 
@@ -424,7 +479,7 @@ export default function DashboardPage() {
     setTaskModalOpen(true);
   };
 
-  const handleDeleteTask = (taskId: number) => {
+  const handleDeleteTask = (taskId: string) => {
     setPendingTasks(prev => prev.map(task => 
       task.id === taskId ? { ...task, isDeleting: true } : task
     ));
@@ -434,7 +489,7 @@ export default function DashboardPage() {
     }, 300);
   };
 
-  const handleToggleTask = (taskId: number) => {
+  const handleToggleTask = (taskId: string) => {
     setPendingTasks(prev => prev.map(task => 
       task.id === taskId ? { ...task, completed: !task.completed } : task
     ));
@@ -444,7 +499,8 @@ export default function DashboardPage() {
     if (taskModalMode === "add") {
       const newTask: Task = {
         ...taskData,
-        id: Date.now(),
+        id: Date.now().toString(),
+        category: taskData.category || 'visita', // Default to 'visita' if not specified
         createdAt: new Date(),
         completed: false,
       };
@@ -573,7 +629,7 @@ export default function DashboardPage() {
                   <CardTitle className="flex items-center space-x-2">
                     <Camera className="h-5 w-5" />
                     <span>Fotos para Revisar</span>
-                    <Badge variant="secondary">{uploadedImages.length}</Badge>
+                    {uploadCount !== null && <Badge variant="secondary">{uploadCount}</Badge>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -619,58 +675,9 @@ export default function DashboardPage() {
 
             {/* Right Column */}
             <div className="space-y-6">
-              {/* Upload Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Upload className="h-5 w-5" />
-                    <span>Subida Rápida</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Button
-                      onClick={() => document.getElementById('file-upload')?.click()}
-                      className="w-full flex items-center space-x-2"
-                      disabled={isAnalyzing}
-                    >
-                      {isAnalyzing ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          <span>Subiendo y analizando...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-4 w-4" />
-                          <span>Subir Nueva</span>
-                        </>
-                      )}
-                    </Button>
-                    <input
-                      id="file-upload"
-                      type="file"
-                      multiple
-                      accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    <p className="text-sm text-gray-600 text-center">
-                      Formatos soportados: JPG, PNG, WebP, BMP, TIFF
-                    </p>
 
-                  </div>
-                </CardContent>
-              </Card>
 
-              {/* AI Product Detection Results */}
-              {user?.id && (
-                <ProductDetectionResults 
-                  userId={user.id}
-                  showImage={false}
-                  refreshTrigger={productosRefreshTrigger}
-                  userRole={user.role}
-                />
-              )}
+
 
               {/* Upcoming Visits */}
               <Card>
@@ -682,32 +689,45 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {upcomingVisits.map((visit) => (
-                      <div
-                        key={visit.id}
-                        className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors cursor-pointer"
-                        onClick={() => handleVisitClick(visit)}
-                      >
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">{visit.store}</div>
-                          <div className="text-sm text-gray-600 flex items-center space-x-2">
-                            <MapPin className="h-3 w-3" />
-                            <span>{visit.location}</span>
+                    {getUpcomingVisits().length > 0 ? (
+                      getUpcomingVisits().map((visit: any) => (
+                        <div
+                          key={visit.id}
+                          className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors cursor-pointer"
+                          onClick={() => handleVisitClick(visit)}
+                        >
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{visit.store}</div>
+                            <div className="text-sm text-gray-600 flex items-center space-x-2">
+                              <MapPin className="h-3 w-3" />
+                              <span>{visit.location}</span>
+                            </div>
+                            <div className="text-sm text-gray-600 flex items-center space-x-2">
+                              <Clock className="h-3 w-3" />
+                              <span>{visit.date} a las {visit.time}</span>
+                            </div>
+                            {visit.priority === 'urgent' && (
+                              <Badge variant="destructive" className="text-xs mt-1">
+                                Urgente
+                              </Badge>
+                            )}
                           </div>
-                          <div className="text-sm text-gray-600 flex items-center space-x-2">
-                            <Clock className="h-3 w-3" />
-                            <span>{visit.date} a las {visit.time}</span>
+                          <div className="flex items-center space-x-2">
+                            <Badge
+                              variant={visit.status === "confirmed" ? "default" : "secondary"}
+                            >
+                              {visit.status === "confirmed" ? "Confirmada" : "Pendiente"}
+                            </Badge>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge
-                            variant={visit.status === "confirmed" ? "default" : "secondary"}
-                          >
-                            {visit.status === "confirmed" ? "Confirmada" : "Pendiente"}
-                          </Badge>
-                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <p className="text-lg font-medium">No tienes visitas programadas</p>
+                        <p className="text-sm">Las tareas de tipo "visita" aparecerán aquí automáticamente</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -733,10 +753,10 @@ export default function DashboardPage() {
         {taskModalOpen && (
           <TaskModal
             isOpen={taskModalOpen}
-            mode={taskModalMode}
             task={selectedTask}
             onClose={() => setTaskModalOpen(false)}
-            onSave={handleSaveTask}
+            onCreate={handleSaveTask}
+            onUpdate={handleSaveTask}
             onDelete={handleDeleteTask}
           />
         )}

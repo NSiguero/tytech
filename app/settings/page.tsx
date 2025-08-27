@@ -27,7 +27,8 @@ import {
   RefreshCw,
   User,
   Camera,
-  Lock
+  Lock,
+  LogOut
 } from "lucide-react"
 
 interface TeamMember {
@@ -356,6 +357,11 @@ export default function SettingsPage() {
     window.open(`mailto:?subject=${subject}&body=${body}`)
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    window.location.href = '/login'
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar - Always visible */}
@@ -363,12 +369,30 @@ export default function SettingsPage() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Settings className="w-6 h-6 text-gray-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
+        <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Buenas Tardes, {profile?.first_name || "Usuario"}
+                </h1>
+                <p className="text-gray-600">Aquí puedes gestionar tu perfil y configuración del equipo.</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="flex items-center space-x-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Cerrar Sesión</span>
+              </Button>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* Main Content */}
         <div className="flex-1 overflow-auto p-6">

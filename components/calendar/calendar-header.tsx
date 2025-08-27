@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, Users, Store, CheckSquare } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Clock, Users, Store, CheckSquare } from "lucide-react"
 import { format } from "date-fns"
 
 interface CalendarHeaderProps {
@@ -11,8 +11,6 @@ interface CalendarHeaderProps {
   setCurrentDate: (date: Date) => void
   viewMode: "month" | "week" | "day" | "agenda"
   setViewMode: (mode: "month" | "week" | "day" | "agenda") => void
-  onAssignVisit: () => void
-  onCreateTask: () => void
 }
 
 export function CalendarHeader({
@@ -20,8 +18,6 @@ export function CalendarHeader({
   setCurrentDate,
   viewMode,
   setViewMode,
-  onAssignVisit,
-  onCreateTask,
 }: CalendarHeaderProps) {
   const navigateMonth = (direction: "prev" | "next") => {
     const newDate = new Date(currentDate)
@@ -41,19 +37,9 @@ export function CalendarHeader({
     <div className="bg-white border-b border-gray-200">
       {/* Compact Mobile Header */}
       <div className="block md:hidden">
-        {/* Top row - Title and Add buttons */}
+        {/* Top row - Title only */}
         <div className="flex items-center justify-between p-4 pb-2">
           <h1 className="text-xl font-semibold text-gray-900">Calendario</h1>
-          <div className="flex gap-2">
-            <Button onClick={onCreateTask} size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50">
-              <CheckSquare className="w-4 h-4 mr-1" />
-              Tarea
-            </Button>
-            <Button onClick={onAssignVisit} size="sm" className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-1" />
-              Visita
-            </Button>
-          </div>
         </div>
 
         {/* Second row - Navigation and date */}
@@ -126,17 +112,6 @@ export function CalendarHeader({
               Visitas a Tiendas
             </Badge>
           </div>
-
-          <div className="flex gap-3">
-            <Button onClick={onCreateTask} variant="outline" className="border-green-300 text-green-700 hover:bg-green-50">
-              <CheckSquare className="w-4 h-4 mr-2" />
-              Crear Tarea
-            </Button>
-            <Button onClick={onAssignVisit} size="sm" className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Asignar Visita
-            </Button>
-          </div>
         </div>
 
         {/* Navigation Controls */}
@@ -192,7 +167,7 @@ export function CalendarHeader({
               </div>
               <div>
                 <p className="text-sm text-orange-600 font-medium">En Progreso</p>
-                <p className="text-lg font-semibold text-orange-900">1 visita</p>
+                <p className="text-sm font-semibold text-orange-900">1 visita</p>
               </div>
             </div>
           </div>
