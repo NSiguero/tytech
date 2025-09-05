@@ -29,6 +29,8 @@ import {
   Pause,
   Square,
   Timer,
+  Loader2,
+  CheckSquare,
 } from "lucide-react"
 
 interface VisitModalProps {
@@ -63,11 +65,8 @@ const sampleStoreHistory: StoreHistory = {
 export function VisitModal({ isOpen, onClose, visit }: VisitModalProps) {
   const [visitNotes, setVisitNotes] = useState("")
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([])
-  const [tasks, setTasks] = useState([
-    { id: "1", name: "Auditoría de lineal", completed: false },
-    { id: "2", name: "Verificación de PLV", completed: false },
-    { id: "3", name: "Comprobar precios", completed: false },
-  ])
+  const [tasks, setTasks] = useState<any[]>([])
+  const [loadingTasks, setLoadingTasks] = useState(false)
   const [timer, setTimer] = useState({ elapsed: 0, interval: null as NodeJS.Timeout | null })
   const [currentVisit, setCurrentVisit] = useState<Visit | null>(visit)
 
@@ -75,6 +74,9 @@ export function VisitModal({ isOpen, onClose, visit }: VisitModalProps) {
     if (visit) {
       setCurrentVisit(visit)
       setVisitNotes(visit.notes || "")
+      
+      // Load tasks for this visit
+      loadVisitTasks(visit)
 
       // If visit is in progress and has a start time, calculate elapsed time
       if (visit.status === "in-progress" && visit.startTime) {
@@ -83,6 +85,86 @@ export function VisitModal({ isOpen, onClose, visit }: VisitModalProps) {
       }
     }
   }, [visit])
+
+  // Function to load tasks related to this visit
+  const loadVisitTasks = async (visitData: Visit) => {
+    try {
+      setLoadingTasks(true)
+      
+      // Get user from localStorage
+      const storedUser = localStorage.getItem("user")
+      if (!storedUser) return
+      
+      const user = JSON.parse(storedUser)
+      
+      // Extract supermarket info from visit data
+      // For now, we'll use the store name to determine the chain
+      const cadenaSupermercado = getCadenaFromStore(visitData.store)
+      
+      const params = new URLSearchParams({
+        user_id: user.id.toString(),
+        ...(cadenaSupermercado && { cadena: cadenaSupermercado }),
+        // Add more params based on available data
+      })
+      
+      console.log('Loading tasks for visit:', visitData.id, 'with params:', params.toString())
+      
+      const response = await fetch(`/api/visits/${visitData.id}/tasks?${params}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        console.log('Loaded tasks for visit:', result.tasks)
+        setTasks(result.tasks.map((task: any) => ({
+          id: task.id,
+          name: task.name,
+          description: task.description,
+          completed: false, // Reset completion for this visit
+          priority: task.priority,
+          status: task.status,
+          assignedBy: task.assignedBy,
+          estimatedHours: task.estimatedHours,
+          tags: task.tags || [],
+          cadenaSupermercado: task.cadenaSupermercado,
+          area: task.area,
+          supermercadoId: task.supermercadoId
+        })))
+      } else {
+        console.error('Failed to load tasks:', result.error)
+        // Fallback to default tasks
+        setTasks([
+          { id: "default-1", name: "Auditoría de lineal", completed: false, priority: "medium" },
+          { id: "default-2", name: "Verificación de PLV", completed: false, priority: "medium" },
+          { id: "default-3", name: "Comprobar precios", completed: false, priority: "medium" },
+        ])
+      }
+    } catch (error) {
+      console.error('Error loading visit tasks:', error)
+      // Fallback to default tasks
+      setTasks([
+        { id: "default-1", name: "Auditoría de lineal", completed: false, priority: "medium" },
+        { id: "default-2", name: "Verificación de PLV", completed: false, priority: "medium" },
+        { id: "default-3", name: "Comprobar precios", completed: false, priority: "medium" },
+      ])
+    } finally {
+      setLoadingTasks(false)
+    }
+  }
+
+  // Helper function to determine chain from store name
+  const getCadenaFromStore = (storeName: string): string | null => {
+    const name = storeName.toLowerCase()
+    if (name.includes('carrefour')) return 'GRUPO CARREFOUR'
+    if (name.includes('mercadona')) return 'MERCADONA'
+    if (name.includes('alcampo')) return 'GRUPO AUCHAN'
+    if (name.includes('eroski')) return 'GRUPO EROSKI'
+    if (name.includes('día')) return 'GRUPO DIA'
+    return null
+  }
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -407,28 +489,88 @@ export function VisitModal({ isOpen, onClose, visit }: VisitModalProps) {
 
                   {/* Tasks Checklist */}
                   <div>
-                    <Label className="text-sm font-medium mb-3 block">✅ Lista de tareas</Label>
-                    <div className="space-y-3">
-                      {tasks.map((task) => (
-                        <div key={task.id} className="flex items-center space-x-3 p-2 rounded hover:bg-gray-50">
-                          <Checkbox
-                            id={task.id}
-                            checked={task.completed}
-                            onCheckedChange={() => handleTaskToggle(task.id)}
-                            disabled={currentVisit.status === "planned"}
-                            className="h-5 w-5"
-                          />
-                          <Label
-                            htmlFor={task.id}
-                            className={`text-sm flex-1 cursor-pointer ${
-                              task.completed ? "line-through text-gray-500" : ""
-                            }`}
-                          >
-                            {task.name}
-                          </Label>
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <CheckSquare className="w-4 h-4" />
+                        Lista de tareas
+                      </Label>
+                      {loadingTasks && (
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      )}
                     </div>
+                    
+                    {loadingTasks ? (
+                      <div className="space-y-2">
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="flex items-center space-x-3 p-2 rounded">
+                            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="flex-1 h-4 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {tasks.length === 0 ? (
+                          <div className="text-center text-gray-500 py-4">
+                            <CheckSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm">No hay tareas específicas para esta visita</p>
+                            <p className="text-xs text-gray-400 mt-1">Las tareas se asignan según la cadena y ubicación</p>
+                          </div>
+                        ) : (
+                          tasks.map((task) => (
+                            <div key={task.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                              <div className="flex items-start space-x-3">
+                                <Checkbox
+                                  id={task.id}
+                                  checked={task.completed}
+                                  onCheckedChange={() => handleTaskToggle(task.id)}
+                                  disabled={currentVisit?.status === "planned"}
+                                  className="h-5 w-5 mt-0.5"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <Label
+                                    htmlFor={task.id}
+                                    className={`text-sm font-medium cursor-pointer block ${
+                                      task.completed ? "line-through text-gray-500" : ""
+                                    }`}
+                                  >
+                                    {task.name}
+                                  </Label>
+                                  {task.description && (
+                                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                      {task.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Badge 
+                                      variant={
+                                        task.priority === "urgent" ? "destructive" :
+                                        task.priority === "high" ? "default" :
+                                        task.priority === "medium" ? "secondary" : "outline"
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {task.priority}
+                                    </Badge>
+                                    {task.cadenaSupermercado && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {task.cadenaSupermercado}
+                                      </Badge>
+                                    )}
+                                    {task.estimatedHours && (
+                                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        {task.estimatedHours}h
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Notes */}

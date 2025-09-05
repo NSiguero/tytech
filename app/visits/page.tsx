@@ -38,6 +38,7 @@ import {
   Timer,
   CheckSquare,
   LogOut,
+  Loader2,
 } from "lucide-react"
 
 interface Product {
@@ -144,11 +145,8 @@ export default function VisitsPage() {
   const [storeHistory] = useState<StoreHistory>(sampleStoreHistory)
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([])
   const [visitNotes, setVisitNotes] = useState("")
-  const [tasks, setTasks] = useState([
-    { id: "1", name: "Auditoría de lineal", completed: true },
-    { id: "2", name: "Verificación de PLV", completed: false },
-    { id: "3", name: "Comprobar precios", completed: false },
-  ])
+  const [tasks, setTasks] = useState<any[]>([])
+  const [loadingTasks, setLoadingTasks] = useState(false)
   const [timers, setTimers] = useState<Record<string, { elapsed: number; interval: NodeJS.Timeout | null }>>({})
 
   // Get user from localStorage on component mount
@@ -180,6 +178,101 @@ export default function VisitsPage() {
     }
   }
 
+  // Function to load tasks for a specific visit
+  const loadVisitTasks = async (visitData: Visit) => {
+    try {
+      setLoadingTasks(true)
+      
+      console.log('🔍 DEBUG - Loading tasks for visit:', visitData.id)
+      console.log('🔍 DEBUG - User object:', user)
+      console.log('🔍 DEBUG - User ID:', user?.id)
+      
+      if (!user?.id) {
+        console.warn('❌ No user ID found, skipping task loading')
+        setTasks([
+          { id: "no-user-1", name: "Usuario no encontrado", completed: false, priority: "medium" },
+          { id: "no-user-2", name: "Inicia sesión para ver tareas", completed: false, priority: "medium" },
+        ])
+        return
+      }
+      
+      // Extract supermarket info from visit data
+      const cadenaSupermercado = getCadenaFromStore(visitData.store)
+      console.log('🔍 DEBUG - Store name:', visitData.store)
+      console.log('🔍 DEBUG - Detected chain:', cadenaSupermercado)
+      
+      const params = new URLSearchParams({
+        user_id: user.id.toString(),
+        ...(cadenaSupermercado && { cadena: cadenaSupermercado }),
+      })
+      
+      console.log('🔍 DEBUG - API URL:', `/api/visits/${visitData.id}/tasks?${params.toString()}`)
+      
+      const response = await fetch(`/api/visits/${visitData.id}/tasks?${params}`)
+      
+      console.log('🔍 DEBUG - API Response status:', response.status)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      console.log('🔍 DEBUG - API Result:', result)
+      
+      if (result.success) {
+        console.log('✅ SUCCESS - Loaded tasks:', result.tasks.length, 'tasks')
+        if (result.tasks.length === 0) {
+          setTasks([
+            { id: "empty-1", name: "No hay tareas para esta visita", completed: false, priority: "medium" },
+            { id: "empty-2", name: "Verifica que existan tareas en la BD", completed: false, priority: "medium" },
+          ])
+        } else {
+          setTasks(result.tasks.map((task: any) => ({
+            id: task.id,
+            name: task.name,
+            description: task.description,
+            completed: false, // Reset completion for this visit
+            priority: task.priority,
+            status: task.status,
+            assignedBy: task.assignedBy,
+            estimatedHours: task.estimatedHours,
+            tags: task.tags || [],
+            cadenaSupermercado: task.cadenaSupermercado,
+            area: task.area,
+            supermercadoId: task.supermercadoId
+          })))
+        }
+      } else {
+        console.error('❌ API Error:', result.error)
+        // Fallback to default tasks
+        setTasks([
+          { id: "api-error-1", name: "Error en API: " + (result.error || "Unknown"), completed: false, priority: "medium" },
+          { id: "api-error-2", name: "Usando tareas por defecto", completed: false, priority: "medium" },
+        ])
+      }
+    } catch (error) {
+      console.error('❌ Exception loading visit tasks:', error)
+      // Fallback to default tasks
+      setTasks([
+        { id: "exception-1", name: "Error de conexión: " + error.message, completed: false, priority: "medium" },
+        { id: "exception-2", name: "Verifica la consola del navegador", completed: false, priority: "medium" },
+      ])
+    } finally {
+      setLoadingTasks(false)
+    }
+  }
+
+  // Helper function to determine chain from store name
+  const getCadenaFromStore = (storeName: string): string | null => {
+    const name = storeName.toLowerCase()
+    if (name.includes('carrefour')) return 'GRUPO CARREFOUR'
+    if (name.includes('mercadona')) return 'MERCADONA'
+    if (name.includes('alcampo')) return 'GRUPO AUCHAN'
+    if (name.includes('eroski')) return 'GRUPO EROSKI'
+    if (name.includes('día')) return 'GRUPO DIA'
+    return null
+  }
+
   // Check if we should show detail view based on URL parameter
   useEffect(() => {
     if (visitId) {
@@ -188,6 +281,11 @@ export default function VisitsPage() {
         setSelectedVisit(visit)
         setCurrentView("detail")
         setVisitNotes(visit.notes || "")
+        
+        // Load tasks for this visit
+        if (user?.id) {
+          loadVisitTasks(visit)
+        }
 
         // If visit is in progress and has a start time, calculate elapsed time
         if (visit.status === "in-progress" && visit.startTime) {
@@ -196,7 +294,7 @@ export default function VisitsPage() {
         }
       }
     }
-  }, [visitId])
+  }, [visitId, user?.id])
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -594,6 +692,9 @@ export default function VisitsPage() {
                           onClick={() => {
                             setSelectedVisit(visit)
                             setCurrentView("detail")
+                            if (user?.id) {
+                              loadVisitTasks(visit)
+                            }
                           }}
                         >
                           <CardContent className="p-3 md:p-6">
@@ -985,25 +1086,94 @@ export default function VisitsPage() {
 
                   {/* Tasks Checklist */}
                   <div>
-                    <Label className="text-sm font-medium mb-2 md:mb-3 block">✅ Lista de tareas</Label>
-                    <div className="space-y-2 md:space-y-3">
-                      {tasks.map((task) => (
-                        <div key={task.id} className="flex items-center space-x-2 md:space-x-3">
-                          <Checkbox
-                            id={task.id}
-                            checked={task.completed}
-                            onCheckedChange={() => handleTaskToggle(task.id)}
-                            disabled={selectedVisit?.status === "planned"}
-                          />
-                          <Label
-                            htmlFor={task.id}
-                            className={`text-sm ${task.completed ? "line-through text-slate-500" : ""}`}
-                          >
-                            {task.name}
-                          </Label>
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between mb-2 md:mb-3">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <CheckSquare className="w-4 h-4" />
+                        Lista de tareas
+                      </Label>
+                      {loadingTasks && (
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      )}
                     </div>
+                    
+                    {loadingTasks ? (
+                      <div className="space-y-2">
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="flex items-center space-x-3 p-2 rounded">
+                            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="flex-1 h-4 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {tasks.length === 0 ? (
+                          <div className="text-center text-gray-500 py-4 border rounded-lg">
+                            <CheckSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm">No hay tareas específicas para esta visita</p>
+                            <p className="text-xs text-gray-400 mt-1">Las tareas se asignan según la cadena y ubicación</p>
+                          </div>
+                        ) : (
+                          tasks.map((task) => (
+                            <div key={task.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                              <div className="flex items-start space-x-3">
+                                <Checkbox
+                                  id={task.id}
+                                  checked={task.completed}
+                                  onCheckedChange={() => handleTaskToggle(task.id)}
+                                  disabled={selectedVisit?.status === "planned"}
+                                  className="h-5 w-5 mt-0.5"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <Label
+                                    htmlFor={task.id}
+                                    className={`text-sm font-medium cursor-pointer block ${
+                                      task.completed ? "line-through text-slate-500" : ""
+                                    }`}
+                                  >
+                                    {task.name}
+                                  </Label>
+                                  {task.description && (
+                                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                      {task.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                    <Badge 
+                                      variant={
+                                        task.priority === "urgent" ? "destructive" :
+                                        task.priority === "high" ? "default" :
+                                        task.priority === "medium" ? "secondary" : "outline"
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {task.priority}
+                                    </Badge>
+                                    {task.cadenaSupermercado && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {task.cadenaSupermercado}
+                                      </Badge>
+                                    )}
+                                    {task.estimatedHours && (
+                                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        {task.estimatedHours}h
+                                      </span>
+                                    )}
+                                    {task.assignedBy && (
+                                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                                        <User className="w-3 h-3" />
+                                        {task.assignedBy}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Notes */}

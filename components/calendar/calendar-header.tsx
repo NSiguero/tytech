@@ -3,8 +3,10 @@
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, Calendar, Clock, Users, Store, CheckSquare } from "lucide-react"
-import { format } from "date-fns"
+import { Card } from "@/components/ui/card"
+import { ChevronLeft, ChevronRight, Calendar, Clock, Users, Store, CheckSquare, CalendarDays, Grid3X3, List, Eye } from "lucide-react"
+import { format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface CalendarHeaderProps {
   currentDate: Date
@@ -19,14 +21,37 @@ export function CalendarHeader({
   viewMode,
   setViewMode,
 }: CalendarHeaderProps) {
-  const navigateMonth = (direction: "prev" | "next") => {
-    const newDate = new Date(currentDate)
-    if (direction === "prev") {
-      newDate.setMonth(currentDate.getMonth() - 1)
-    } else {
-      newDate.setMonth(currentDate.getMonth() + 1)
+  const navigateDate = (direction: "prev" | "next") => {
+    let newDate;
+    switch (viewMode) {
+      case "month":
+        newDate = direction === "prev" ? subMonths(currentDate, 1) : addMonths(currentDate, 1);
+        break;
+      case "week":
+        newDate = direction === "prev" ? subWeeks(currentDate, 1) : addWeeks(currentDate, 1);
+        break;
+      case "day":
+        newDate = direction === "prev" ? subDays(currentDate, 1) : addDays(currentDate, 1);
+        break;
+      default:
+        newDate = direction === "prev" ? subMonths(currentDate, 1) : addMonths(currentDate, 1);
     }
-    setCurrentDate(newDate)
+    setCurrentDate(newDate);
+  }
+
+  const getDateTitle = () => {
+    switch (viewMode) {
+      case "month":
+        return format(currentDate, "MMMM yyyy", { locale: es });
+      case "week":
+        return `Semana del ${format(currentDate, "d MMM", { locale: es })}`;
+      case "day":
+        return format(currentDate, "EEEE, d 'de' MMMM", { locale: es });
+      case "agenda":
+        return "Vista de Agenda";
+      default:
+        return format(currentDate, "MMMM yyyy", { locale: es });
+    }
   }
 
   const goToToday = () => {
@@ -45,15 +70,15 @@ export function CalendarHeader({
         {/* Second row - Navigation and date */}
         <div className="flex items-center justify-between px-4 pb-2">
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={() => navigateMonth("prev")}>
+            <Button variant="outline" size="sm" onClick={() => navigateDate("prev")}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigateMonth("next")}>
+            <Button variant="outline" size="sm" onClick={() => navigateDate("next")}>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 
-          <h2 className="text-lg font-medium text-gray-900">{format(currentDate, "MMM yyyy")}</h2>
+          <h2 className="text-lg font-medium text-gray-900">{getDateTitle()}</h2>
 
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" onClick={goToToday}>
@@ -117,20 +142,20 @@ export function CalendarHeader({
         {/* Navigation Controls */}
         <div className="flex items-center justify-between px-6 pb-4">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" onClick={() => navigateMonth("prev")}>
+            <div className="flex items-center space-x-2 bg-gray-50 rounded-lg p-1">
+              <Button variant="ghost" size="sm" onClick={() => navigateDate("prev")} className="hover:bg-white">
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={() => navigateMonth("next")}>
+              <Button variant="ghost" size="sm" onClick={() => navigateDate("next")} className="hover:bg-white">
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
 
-            <Button variant="outline" size="sm" onClick={goToToday}>
+            <Button variant="outline" size="sm" onClick={goToToday} className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
               Hoy
             </Button>
 
-            <h2 className="text-lg font-medium text-gray-900">{format(currentDate, "MMMM yyyy")}</h2>
+            <h2 className="text-xl font-semibold text-gray-900">{getDateTitle()}</h2>
           </div>
 
           <Select value={viewMode} onValueChange={(value: "month" | "week" | "day" | "agenda") => setViewMode(value)}>

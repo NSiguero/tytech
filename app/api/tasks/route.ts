@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, category, priority, assigned_to, due_date, estimated_hours, tags } = body;
+    const { title, description, category, priority, assigned_to, due_date, estimated_hours, tags, cadena_supermercado, area } = body;
 
     if (!title || !assigned_to || !category) {
       return NextResponse.json({ error: 'Title, assigned_to, and category are required' }, { status: 400 });
@@ -75,7 +75,9 @@ export async function POST(request: NextRequest) {
       assigned_to,
       due_date: due_date ? new Date(due_date) : undefined,
       estimated_hours,
-      tags
+      tags,
+      cadena_supermercado,
+      area
     }, decoded.id);
 
     return NextResponse.json({ task }, { status: 201 });

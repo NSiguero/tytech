@@ -27,7 +27,10 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assigned_by: number;
   assigned_to: number;
+  assigned_by_name?: string; // Populated when doing JOINs
+  assigned_to_name?: string; // Populated when doing JOINs
   team_code: string;
+  start_date?: Date;
   due_date?: Date;
   created_at: Date;
   updated_at: Date;
@@ -38,6 +41,9 @@ export interface Task {
   attachments?: string[];
   comments?: TaskComment[];
   history?: TaskHistory[];
+  cadena_supermercado?: string;
+  area?: string;
+  supermercado_id?: number;
 }
 
 export interface CreateTaskData {
@@ -46,9 +52,13 @@ export interface CreateTaskData {
   category: 'visita' | 'reporte';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to: number;
+  start_date?: Date;
   due_date?: Date;
   estimated_hours?: number;
   tags?: string[];
+  cadena_supermercado?: string;
+  area?: string;
+  supermercado_id?: number;
 }
 
 export interface UpdateTaskData {
@@ -56,6 +66,7 @@ export interface UpdateTaskData {
   description?: string;
   status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
+  start_date?: Date;
   due_date?: Date;
   actual_hours?: number;
   tags?: string[];
@@ -76,8 +87,8 @@ export async function createTask(data: CreateTaskData, assignedBy: number): Prom
   }
 
   const query = `
-    INSERT INTO tasks (title, description, category, priority, assigned_by, assigned_to, team_code, due_date, estimated_hours, tags, comments, history)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (title, description, category, priority, assigned_by, assigned_to, team_code, start_date, due_date, estimated_hours, tags, comments, history, cadena_supermercado, area, supermercado_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   
   const initialHistory = [{
@@ -97,11 +108,15 @@ export async function createTask(data: CreateTaskData, assignedBy: number): Prom
     assignedBy,
     data.assigned_to,
     user.team_code,
+    data.start_date || null,
     data.due_date || null,
     data.estimated_hours || null,
     data.tags ? JSON.stringify(data.tags) : null,
     JSON.stringify([]), // Empty comments array
-    JSON.stringify(initialHistory) // Initial history
+    JSON.stringify(initialHistory), // Initial history
+    data.cadena_supermercado || null,
+    data.area || null,
+    data.supermercado_id || null
   ];
 
   const result = await executeQuery(query, params) as any;
